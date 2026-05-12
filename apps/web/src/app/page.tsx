@@ -27,12 +27,15 @@ export default function Home() {
       
       <main className="container mx-auto px-4 py-12 relative z-10 max-w-7xl">
         <header className="mb-12 text-center space-y-4 relative">
-          <div className="absolute right-0 top-0">
+          <div className="absolute right-0 top-0 z-50">
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={() => setIsSettingsOpen(true)}
-              className="hover:bg-primary/20 rounded-full"
+              onClick={() => {
+                console.log('Settings clicked');
+                setIsSettingsOpen(true);
+              }}
+              className="hover:bg-primary/20 rounded-full transition-all active:scale-95"
             >
               <Settings className="h-6 w-6" />
             </Button>
