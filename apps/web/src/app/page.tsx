@@ -3,12 +3,16 @@
 import { ProgressDashboard } from '@/components/ProgressDashboard';
 import { LessonGrid } from '@/components/LessonGrid';
 import { CheckInDialog } from '@/components/CheckInDialog';
+import { SettingsDialog } from '@/components/SettingsDialog';
 import { useState } from 'react';
 import { Lesson } from '@/store/useCheckinStore';
+import { Settings } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export default function Home() {
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const handleSelectLesson = (lesson: Lesson) => {
     setSelectedLesson(lesson);
@@ -22,7 +26,18 @@ export default function Home() {
       <div className="absolute bottom-0 -right-40 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl opacity-50 mix-blend-multiply" />
       
       <main className="container mx-auto px-4 py-12 relative z-10 max-w-7xl">
-        <header className="mb-12 text-center space-y-4">
+        <header className="mb-12 text-center space-y-4 relative">
+          <div className="absolute right-0 top-0">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => setIsSettingsOpen(true)}
+              className="hover:bg-primary/20 rounded-full"
+            >
+              <Settings className="h-6 w-6" />
+            </Button>
+          </div>
+          
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-blue-500 bg-clip-text text-transparent drop-shadow-sm">
             新概念英语 第一册
           </h1>
@@ -44,6 +59,11 @@ export default function Home() {
           lesson={selectedLesson} 
           open={isDialogOpen} 
           onOpenChange={setIsDialogOpen} 
+        />
+
+        <SettingsDialog
+          open={isSettingsOpen}
+          onOpenChange={setIsSettingsOpen}
         />
       </main>
     </div>

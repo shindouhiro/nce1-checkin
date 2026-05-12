@@ -14,13 +14,25 @@ export interface Lesson {
 
 interface CheckinState {
   lessons: Lesson[];
+  githubToken: string;
+  gistId: string;
+  isSyncing: boolean;
+  
+  // Actions
   checkIn: (id: number, note: string, rating: number) => void;
   startLesson: (id: number) => void;
+  setGithubToken: (token: string) => void;
+  setGistId: (id: string) => void;
+  
+  // Gist Actions
+  syncWithGist: () => Promise<void>;
+  fetchFromGist: () => Promise<void>;
+  
+  // Helpers
   getOverallProgress: () => { completed: number; total: number; percentage: number };
   getStreak: () => number;
 }
 
-// Generate 144 lessons
 const initialLessons: Lesson[] = Array.from({ length: 144 }, (_, i) => ({
   id: i + 1,
   title: `Lesson ${i + 1}`,
@@ -32,6 +44,10 @@ export const useCheckinStore = create<CheckinState>()(
   persist(
     (set, get) => ({
       lessons: initialLessons,
+      githubToken: '',
+      gistId: '',
+      isSyncing: false,
+
       checkIn: (id, note, rating) => {
         set((state) => {
           const updated = state.lessons.map((lesson) => {
@@ -49,6 +65,7 @@ export const useCheckinStore = create<CheckinState>()(
           return { lessons: updated };
         });
       },
+
       startLesson: (id) => {
         set((state) => {
           const updated = state.lessons.map((lesson) => {
@@ -60,6 +77,84 @@ export const useCheckinStore = create<CheckinState>()(
           return { lessons: updated };
         });
       },
+
+      setGithubToken: (token) => set({ githubToken: token }),
+      setGistId: (id) => set({ gistId: id }),
+
+      syncWithGist: async () => {
+        const { githubToken, gistId, lessons } = get();
+        if (!githubToken) throw new Error('未配置 GitHub Token');
+        
+        set({ isSyncing: true });
+        try {
+          const fileName = 'nce1-checkin-data.json';
+          const content = JSON.stringify(lessons, null, 2);
+          
+          const method = gistId ? 'PATCH' : 'POST';
+          const url = gistId 
+            ? `https://api.github.com/gists/${gistId}` 
+            : 'https://api.github.com/gists';
+
+          const response = await fetch(url, {
+            method,
+            headers: {
+              'Authorization': `token ${githubToken}`,
+              'Accept': 'application/vnd.github.v3+json',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              description: '新概念英语第一册打卡数据',
+              public: false,
+              files: {
+                [fileName]: { content }
+              }
+            })
+          });
+
+          if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.message || '同步失败');
+          }
+
+          const data = await response.json();
+          if (!gistId) {
+            set({ gistId: data.id });
+          }
+        } finally {
+          set({ isSyncing: false });
+        }
+      },
+
+      fetchFromGist: async () => {
+        const { githubToken, gistId } = get();
+        if (!githubToken || !gistId) throw new Error('未配置 Token 或 Gist ID');
+
+        set({ isSyncing: true });
+        try {
+          const response = await fetch(`https://api.github.com/gists/${gistId}`, {
+            headers: {
+              'Authorization': `token ${githubToken}`,
+              'Accept': 'application/vnd.github.v3+json',
+            }
+          });
+
+          if (!response.ok) throw new Error('获取数据失败');
+
+          const data = await response.json();
+          const fileName = 'nce1-checkin-data.json';
+          const file = data.files[fileName];
+          
+          if (file && file.content) {
+            const remoteLessons = JSON.parse(file.content);
+            set({ lessons: remoteLessons });
+          } else {
+            throw new Error('Gist 中未找到打卡数据文件');
+          }
+        } finally {
+          set({ isSyncing: false });
+        }
+      },
+
       getOverallProgress: () => {
         const { lessons } = get();
         const completed = lessons.filter((l) => l.status === 'completed').length;
@@ -70,8 +165,8 @@ export const useCheckinStore = create<CheckinState>()(
           percentage: total === 0 ? 0 : Math.round((completed / total) * 100),
         };
       },
+
       getStreak: () => {
-        // Simplified streak calculation based on dates completed
         const { lessons } = get();
         const completedDates = lessons
           .filter((l) => l.dateCompleted)
@@ -85,7 +180,6 @@ export const useCheckinStore = create<CheckinState>()(
         
         let streak = 1;
         const today = new Date().toDateString();
-        // Determine if latest is today or yesterday
         const latest = uniqueDates[0];
         const isLatestTodayOrYest = 
           latest === today || 
@@ -100,12 +194,17 @@ export const useCheckinStore = create<CheckinState>()(
           if (diff === 1) streak++;
           else break;
         }
-
         return streak;
       },
     }),
     {
       name: 'checkin-storage',
+      // Ensure sync settings are persisted
+      partialize: (state) => ({
+        lessons: state.lessons,
+        githubToken: state.githubToken,
+        gistId: state.gistId,
+      }),
     }
   )
 );
